@@ -35,13 +35,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare lowercase image name
+        id: prep
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "image_name=ghcr.io/${REPO_LOWER}" >> $GITHUB_OUTPUT
+
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          # El nombre de la imagen debe ser en minúsculas
-          tags: ghcr.io/${{ github.repository_owner }}/taller-cicd:latest
+          # Usamos el output del paso anterior
+          tags: ${{ steps.prep.outputs.image_name }}:latest
 
   # FASE 3: Despliegue (Opcional)
   deploy:
