@@ -49,14 +49,14 @@ jobs:
           # Usamos el output del paso anterior
           tags: ${{ steps.prep.outputs.image_name }}:latest
 
-  # FASE 3: Despliegue (Opcional)
+  # FASE 3: Despliegue
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Deploy
-        run: echo "Aquí conectarías con tu servicio de hosting (Render/Railway/etc)"
-        # curl ${{ secrets.DEPLOY_HOOK }}
+      - name: Deploy to Render
+        # Este comando "llama" a Render para que descargue la nueva imagen
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
 
   # SECCIÓN OPCIONAL: Reporte de Errores (Solo si algo falla)
   error-report:
