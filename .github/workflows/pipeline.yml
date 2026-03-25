@@ -1,70 +1,62 @@
-name: CI/CD Workshop Pipeline
+name: CI/CD Workshop GHCR
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+
+# Permisos necesarios para escribir en GitHub Packages
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  # FASE 1: Integración Continua (Linting y Pruebas)
-  build-and-test:
+  # FASE 1: Calidad de Código
+  linting:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout del código
-        uses: actions/checkout@v3
-
-      - name: Configurar Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+      - run: pip install flake8 && flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: Instalar dependencias
-        run: |
-          pip install flake8
-          if [ -f app/requirements.txt ]; then pip install -r app/requirements.txt; fi
-
-      - name: Lint con flake8 (Calidad de código)
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-
-  # FASE 2: Entrega Continua (Build de Docker y Push)
-  docker-build:
-    needs: build-and-test
+  # FASE 2: Build y Push a GitHub Packages
+  build-and-push:
+    needs: linting
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Login en Docker Hub
-        uses: docker/login-action@v2
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push
-        uses: docker/build-push-action@v4
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
         with:
+          context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/workshop-app:latest
+          # El nombre de la imagen debe ser en minúsculas
+          tags: ghcr.io/${{ github.repository_owner }}/taller-cicd:latest
 
-  # FASE 3: Despliegue Continuo (Opcional - Render)
+  # FASE 3: Despliegue (Opcional)
   deploy:
-    needs: docker-build
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Render
-        run: curl ${{ secrets.RENDER_DEPLOY_HOOK }}
+      - name: Trigger Deploy
+        run: echo "Aquí conectarías con tu servicio de hosting (Render/Railway/etc)"
+        # curl ${{ secrets.DEPLOY_HOOK }}
 
-  # SECCIÓN OPCIONAL: Notificaciones (Solo si falla o termina)
-  notifications:
-    needs: [deploy]
-    if: always()
+  # SECCIÓN OPCIONAL: Reporte de Errores (Solo si algo falla)
+  error-report:
+    if: failure()
+    needs: [linting, build-and-push]
     runs-on: ubuntu-latest
     steps:
-      - name: Reporte de Estado
-        run: |
-          echo "El workflow ha terminado con estado: ${{ job.status }}"
-          # Aquí se podría integrar un envío de email o webhook de Slack
-
-
-
+      - name: Send Error Notification
+        run: echo "¡Atención! El pipeline falló en alguna fase. Revisar logs."
